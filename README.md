@@ -10,6 +10,7 @@ Every teacher will have a database exclusively for him or her on which the atten
 Note: Proxy detection is the problem I am currently struggling with.
 
 Details: 
+
 Hardware used-
 MFRC522 RFID card reader
 Raspberry Pi
