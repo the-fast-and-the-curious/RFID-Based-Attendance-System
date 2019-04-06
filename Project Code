@@ -1,0 +1,159 @@
+import pymysql    #You will have to install this connector on your Raspberry Pi first
+import datetime
+import MFRC522    #Install this on your Raspberry Pi (Follow Pi My Life Up Tutorial)
+import RPi.GPIO as GPIO 
+import SimpleMFRC522
+from time import sleep
+conn=pymysql.connect(host='localhost',user='pi',password='raspberry',db='rfid')  #establishing connection to the database
+a=conn.cursor()
+import Adafruit_Nokia_LCD as LCD 
+import Adafruit_GPIO.SPI as SPI
+from PIL import ImageDraw
+from PIL import Image
+from PIL import ImageFont
+reader = SimpleMFRC522.SimpleMFRC522()    #defining the object called reader
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+now = datetime.datetime.now()
+DC = 23            #RPi
+RST = 24           #SPI
+SPI_PORT = 0       #Configuration
+SPI_DEVICE = 0     #Settings
+
+disp = LCD.PCD8544(DC, RST, spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE, max_speed_hz=4000000))
+ 
+# Software SPI usage (defaults to bit-bang SPI interface):
+disp = LCD.PCD8544(DC, RST, SCLK, DIN, CS)
+
+# Initialize library.
+disp.begin(contrast=60)
+ 
+# Clear display.
+disp.clear()
+disp.display()
+
+code=0
+
+#defining timeframes
+t1 = now.replace(hour=10, minute=00, second=0, microsecond=0)
+t2 = now.replace(hour=11, minute=30, second=0, microsecond=0)
+t3 = now.replace(hour=11, minute=10, second=0, microsecond=0)
+t4 = now.replace(hour=11, minute=20, second=0, microsecond=0)
+t5 = now.replace(hour=11, minute=30, second=0, microsecond=0)
+t6 = now.replace(hour=12, minute=40, second=0, microsecond=0)
+
+
+GPIO.setup(5,GPIO.OUT) #Ready LED
+GPIO.setup(19,GPIO.OUT) #Card Authenticated Green LED
+GPIO.setup(26,GPIO.OUT) #Card not Authenticated Red LED and Buzzer
+GPIO.setup(21,GPIO.OUT) #LCD backlight
+
+s=m=g=h=0
+co=0
+i=j=k=0
+
+while True:
+        GPIO.output(5,GPIO.HIGH) #Ready LED ON
+        GPIO.output(19,GPIO.LOW) #Card Authenticated Green LED ON
+        GPIO.output(21,0) #LCD Backlight ON
+        GPIO.output(26,GPIO.LOW)   #Card not Authenticated Red LED and Buzzer OFF
+        now = datetime.datetime.now
+        try:
+		            GPIO.output(5,GPIO.HIGH)
+                id = reader.read()
+                code =str(id[0])
+                print(code)
+                if code=='69469918290':    #Predefined Professor Cards
+                        s=1
+                if code=='206506480718':   #Predefined Professor Cards
+                        m=2
+                if code=='779136752':      #Predefined Professor Cards
+                        g=3
+                if code=='962386711697':   #Predefined Professor Cards
+                        h=4
+
+                a.execute("select * from test1 where UID=%s ", code)
+                result = a.fetchall()
+		            for row in result:
+                        co=row[0]
+                if code==co or code=='69469918290' or code=='206506480718' or code=='779136752':
+
+                        GPIO.output(5,GPIO.LOW)  #Ready LED OFF
+                        GPIO.output(19,GPIO.HIGH) #Card Authenticated Green LED ON
+                        GPIO.output(21,1) #LCD Backlight ON
+                        font=ImageFont.load_default()
+                        image=Image.new('1',(LCD.LCDWIDTH,LCD.LCDHEIGHT))
+                        draw=ImageDraw.Draw(image)
+                        draw.rectangle((0,0,LCD.LCDWIDTH,LCD.LCDHEIGHT), outline=255, fill=255)
+                        draw.text((1,10),'Your Card is',font=font)
+                        draw.text((1,20),'Authenticated',font=font)
+                        draw.text((1,30),'1',font=font)
+                        disp.image(image)
+                        disp.display()
+                        sleep(1)
+                        disp.clear()
+                        disp.display()
+                        GPIO.output(19,GPIO.LOW)    #Card Authenticated Green LED OFF
+                        GPIO.output(21,GPIO.LOW)    #LCD Backlight OFF
+		                                  #break
+                else:
+                        GPIO.output(5,GPIO.LOW)    #Ready LED OFF
+                        GPIO.output(26,GPIO.HIGH)   #Card not Authenticated Red LED and Buzzer ON
+                        GPIO.output(21,1)   #LCD Backlight ON
+                        font=ImageFont.load_default()
+                        image=Image.new('1',(LCD.LCDWIDTH,LCD.LCDHEIGHT))
+                        draw=ImageDraw.Draw(image)
+                        draw.rectangle((0,0,LCD.LCDWIDTH,LCD.LCDHEIGHT), outline=255, fill=255)
+                        draw.text((1,10),'Your Card isnt',font=font)
+                        draw.text((1,20),'Authenticated',font=font)
+                        draw.text((1,30),'Error',font=font)
+                        disp.image(image)
+                        disp.display()
+                        sleep(1)
+                        disp.clear()
+                        disp.display()
+                        GPIO.output(26,GPIO.LOW)     #Card not Authenticated RED LED and Buzzer OFF
+                        GPIO.output(21,GPIO.LOW)     #LCD Backlight OFF
+        finally:
+
+                GPIO.cleanup()
+                now=datetime.datetime.now()
+                if ((now>t1 and now<t2)or(now>t3 and now<t4)or(now>t5 and now<t6)):
+
+                        a.execute("UPDATE test1 SET att=1 WHERE UID= %s",code)
+                        conn.commit()
+		            print(s)
+                print(m)
+                print(g)
+                print(h)
+                if s==1:
+                        i=i+1
+                        a.execute("ALTER TABLE prof1 ADD COLUMN Lec%s int(2) NOT NULL",i)
+                        conn.commit()
+                        a.execute("UPDATE prof1,test1 SET prof1.Lec%s=test1.att WHERE prof1.UID=test1.UID",i)
+                        conn.commit()
+                        a.execute("UPDATE test1 SET att= 0")
+                        conn.commit()
+                if m==2:
+                        j=j+1
+                        a.execute("ALTER TABLE prof2 ADD COLUMN Lec%s int(2) NOT NULL",j)
+                        conn.commit()
+                        a.execute("UPDATE prof2,test1 SET prof2.Lec%s=test1.att WHERE prof2.UID=test1.UID",j)
+                        conn.commit()
+                        a.execute("UPDATE test1 SET att= 0")
+                        conn.commit()
+                if g==3:
+                        k=k+1
+                        a.execute("ALTER TABLE prof3 ADD COLUMN Lec%s int(2) NOT NULL",k)
+                        conn.commit()
+                        a.execute("UPDATE prof3,test1 SET prof3.Lec%s=test1.att WHERE prof2.UID=test1.UID",k)
+                        conn.commit()
+                if h==4:
+                        a.execute("UPDATE test1 SET att= 0")
+                        conn.commit()
+
+                s=0
+                m=0
+                g=0
+                h=0
+
